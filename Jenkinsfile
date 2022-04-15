@@ -272,11 +272,7 @@ pipeline {
             defaultValue: false,
             description: "")
         booleanParam(
-            name: "BUILD_FULL_TESTS1",
-            defaultValue: true,
-            description: "")
-        booleanParam(
-            name: "BUILD_FULL_TESTS2",
+            name: "BUILD_FULL_TESTS",
             defaultValue: true,
             description: "")
         booleanParam(
@@ -761,9 +757,9 @@ pipeline {
                 // }
             }
         }
-        stage("Full Tests I") {
+        stage("Full Tests") {
             when {
-                expression { params.BUILD_FULL_TESTS1 }
+                expression { params.BUILD_FULL_TESTS }
             }
             parallel{
                 stage('Int8 HIP All Vega20 /opt/rocm') {
@@ -836,20 +832,6 @@ pipeline {
                         buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, gpu_arch: "gfx1030")
                     }
                 }
-            }
-        }
-
-        stage("Full Tests II") {
-            when {
-                expression { params.BUILD_FULL_TESTS2 }
-            }
-            environment{
-                WORKAROUND_iGemm_936 = " MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_HIP_FWD_V4R1=0"
-                // WORKAROUND_ISSUE_1148: "CTEST_PARALLEL_LEVEL=2"
-                // WORKAROUND_SWDEV_290754: "LLVM_PATH=/opt/rocm/llvm"
-                Navi21_build_cmd = "LLVM_PATH=/opt/rocm/llvm CTEST_PARALLEL_LEVEL=2 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 MIOPEN_LOG_LEVEL=5 make -j\$(nproc) check"
-            }
-            parallel{
                 stage('Fp32 Hip All gfx908') {
                     when {
                         beforeAgent true
@@ -888,7 +870,7 @@ pipeline {
                     }
                     agent{ label rocmnode("vega20") }
                     steps{
-                        buildHipClangJobAndReboot( setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true")
+                        buildHipClangJobAndReboot( setup_flags: Full_test + Fp16_flags, build_install: "true")
                     }
                 }
                 stage('Fp32 Hip All Vega20') {
@@ -908,7 +890,7 @@ pipeline {
                     }
                     agent{ label rocmnode("navi21") }
                     steps{
-                        buildHipClangJobAndReboot(compiler: 'g++', setup_flags: Full_test, build_cmd: Navi21_build_cmd, gpu_arch: "gfx1030")
+                        buildHipClangJobAndReboot(compiler: 'g++', setup_flags: Full_test, gpu_arch: "gfx1030")
                     }
                 }
                 stage('Fp32 Hip All Install gfx1030') {
@@ -918,7 +900,7 @@ pipeline {
                     }
                     agent{ label rocmnode("navi21") }
                     steps{
-                        buildHipClangJobAndReboot(setup_flags: Full_test, build_cmd: Navi21_build_cmd, build_install: "true", gpu_arch: "gfx1030")
+                        buildHipClangJobAndReboot(setup_flags: Full_test, build_install: "true", gpu_arch: "gfx1030")
                     }
                 }
                 stage('Fp16 Hip All Install gfx908') {
@@ -928,7 +910,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908") }
                     steps{
-                        buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true", gpu_arch: "gfx908")
+                        buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_install: "true", gpu_arch: "gfx908")
                     }
                 }
                 stage('Fp16 Hip All Install gfx90a') {
@@ -938,7 +920,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     steps{
-                        buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true", gpu_arch: "gfx90a:xnack-")
+                        buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_install: "true", gpu_arch: "gfx90a:xnack-")
                     }
                 }
             }
