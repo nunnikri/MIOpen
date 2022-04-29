@@ -66,6 +66,7 @@ MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_CONV_FFT)
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEVICE_ARCH)
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_CONV_IMMED_FALLBACK)
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_COMPILE_ONLY)
+MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_COMPARE_TIME)
 
 size_t GetKernelGlobalWorkDim(const KernelInvoke& kernel, int dim) { return kernel.gdims[dim]; }
 
@@ -483,6 +484,37 @@ void ConvolutionDescriptor::FindConvFwdAlgorithm(Handle& handle,
         const auto id = solver::Id(sol.solution_id);
         perf_db.push_back(
             {id.GetAlgo(conv::Direction::Forward), id.ToString(), sol.time, sol.workspace_size});
+
+        if(miopen::IsEnabled(MIOPEN_DEBUG_COMPARE_TIME{}))
+        {
+            ctx.DetectRocm();
+            ConvolutionUserBuffers bufs(workSpace, workSpaceSize);
+            bufs.SetFwd(x, w, y);
+            ctx.SetBufs(bufs);
+            const auto& solv = id.GetSolver();
+            if(!solv.IsApplicable(ctx))
+            {
+                MIOPEN_LOG_W("Solver is not applicable");
+            }
+            else
+            {
+                const auto invoke_ctx =
+                    conv::DataInvokeParams{InvokeType::Evaluate,
+                                           {xDesc, x, wDesc, w, yDesc, y},
+                                           workSpace,
+                                           workSpaceSize,
+                                           this->attribute.gfx90aFp16alt.GetFwd()};
+                auto db   = GetDb(ctx);
+                auto soln = solv.FindSolution(ctx, db, invoke_ctx);
+                DbRecord record;
+                EvaluateInvokers(handle,
+                                 {soln},
+                                 AlgorithmName(id.GetAlgo(conv::Direction::Forward)),
+                                 ctx.BuildConfKey(),
+                                 invoke_ctx,
+                                 record);
+            }
+        }
     }
     else
     {
@@ -1114,6 +1146,37 @@ void ConvolutionDescriptor::FindConvBwdDataAlgorithm(Handle& handle,
                            id.ToString(),
                            imm_sol.time,
                            imm_sol.workspace_size});
+
+        if(miopen::IsEnabled(MIOPEN_DEBUG_COMPARE_TIME{}))
+        {
+            const auto& solv = id.GetSolver();
+            if(!solv.IsApplicable(ctx))
+            {
+                MIOPEN_LOG_W("Solver is not applicable");
+            }
+            else
+            {
+                ctx.DetectRocm();
+                ConvolutionUserBuffers bufs(workSpace, workSpaceSize);
+                bufs.SetBwd(dx, w, dy);
+                ctx.SetBufs(bufs);
+                const auto invoke_ctx =
+                    conv::DataInvokeParams{InvokeType::Evaluate,
+                                           {dyDesc, dy, wDesc, w, dxDesc, dx},
+                                           workSpace,
+                                           workSpaceSize,
+                                           this->attribute.gfx90aFp16alt.GetBwd()};
+                auto db   = GetDb(ctx);
+                auto soln = solv.FindSolution(ctx, db, invoke_ctx);
+                DbRecord record;
+                EvaluateInvokers(handle,
+                                 {soln},
+                                 AlgorithmName(id.GetAlgo(conv::Direction::BackwardData)),
+                                 ctx.BuildConfKey(),
+                                 invoke_ctx,
+                                 record);
+            }
+        }
     }
     else
     {
@@ -1479,6 +1542,36 @@ void ConvolutionDescriptor::FindConvBwdWeightsAlgorithm(Handle& handle,
                            id.ToString(),
                            imm_sol.time,
                            imm_sol.workspace_size});
+        if(miopen::IsEnabled(MIOPEN_DEBUG_COMPARE_TIME{}))
+        {
+            ctx.DetectRocm();
+            ConvolutionUserBuffers bufs(workSpace, workSpaceSize);
+            bufs.SetWrW(x, dw, dy);
+            ctx.SetBufs(bufs);
+            const auto& solv = id.GetSolver();
+            if(!solv.IsApplicable(ctx))
+            {
+                MIOPEN_LOG_W("Solver is not applicable");
+            }
+            else
+            {
+                const auto invoke_ctx =
+                    conv::WrWInvokeParams{InvokeType::Evaluate,
+                                          {dyDesc, dy, xDesc, x, dwDesc, dw},
+                                          workSpace,
+                                          workSpaceSize,
+                                          this->attribute.gfx90aFp16alt.GetWrW()};
+                auto db   = GetDb(ctx);
+                auto soln = solv.FindSolution(ctx, db, invoke_ctx);
+                DbRecord record;
+                EvaluateInvokers(handle,
+                                 {soln},
+                                 AlgorithmName(id.GetAlgo(conv::Direction::BackwardWeights)),
+                                 ctx.BuildConfKey(),
+                                 invoke_ctx,
+                                 record);
+            }
+        }
     }
     else
     {
